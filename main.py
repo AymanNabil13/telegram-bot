@@ -4,12 +4,12 @@ import os
 import time
 import threading
 
-# ✅ نجيب التوكن من Environment Variables
+# ✅ التوكن ناخذه من Environment Variables في Render
 TOKEN = os.getenv("TOKEN")
 URL = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
-# ✅ ضع هنا Chat ID مالتك حتى توصلك الصفقات
-ADMIN_CHAT_ID = "ضع_الشات_آي_دي_هنا"
+# ✅ هذا هو الـ Chat ID الخاص بيك
+ADMIN_CHAT_ID = "386856110"
 
 app = Flask(__name__)
 
@@ -48,7 +48,7 @@ def send_signal(signal_text):
 
 # ✅ دوال الأسعار (Gold & BTC)
 def get_gold_price():
-    url = "https://api.metals.live/v1/spot"   # API مجاني
+    url = "https://api.metals.live/v1/spot"   # API مجاني للذهب
     r = requests.get(url).json()
     return r[0]['gold']  # يرجع سعر الذهب الحالي
 
@@ -57,7 +57,7 @@ def get_btc_price():
     r = requests.get(url).json()
     return float(r["price"])
 
-# ✅ مهمة مراقبة السوق
+# ✅ مراقبة السوق وإرسال تنبيهات تلقائية
 def monitor_market():
     gold_alert_sent = False
     btc_alert_sent = False
@@ -69,12 +69,12 @@ def monitor_market():
 
             print(f"📊 الذهب: {gold_price} | بيتكوين: {btc_price}")
 
-            # شرط الذهب (مثال: إذا صعد فوق 3300 يبعث تنبيه)
+            # 🚀 شرط الذهب (مثال: إذا صعد فوق 3300 يبعث تنبيه)
             if gold_price > 3300 and not gold_alert_sent:
                 send_signal(f"💰 ذهب اخترق 3300 ✅\n✨ شراء – هدف 3320 وستوب 3285")
                 gold_alert_sent = True  
 
-            # شرط البيتكوين (مثال: إذا صعد فوق 85000 يبعث تنبيه)
+            # 🚀 شرط البيتكوين (مثال: إذا صعد فوق 85000 يبعث تنبيه)
             if btc_price > 85000 and not btc_alert_sent:
                 send_signal(f"💰 بيتكوين اخترق 85,000 ✅\n✨ شراء – هدف 87,000 وستوب 83,000")
                 btc_alert_sent = True
@@ -84,7 +84,7 @@ def monitor_market():
 
         time.sleep(60)  # يفحص كل دقيقة
 
-# ✅ نشغل مراقبة السوق بخيط (Thread) حتى ما توقف البوت
+# ✅ تشغيل مراقبة السوق بخيط منفصل حتى يبقى البوت شغال
 threading.Thread(target=monitor_market, daemon=True).start()
 
 if __name__ == "__main__":
