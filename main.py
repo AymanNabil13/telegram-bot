@@ -1,57 +1,72 @@
-from flask import Flask, request
-import requests
 import os
-from openai import OpenAI
+import requests
+import telebot
+import openai
+from dotenv import load_dotenv
+from flask import Flask, request
 
-# 🟢 نجيب المفاتيح من Environment Variables
+# ✅ تحميل المتغيرات من ملف .env
+load_dotenv()
+
+# ✅ قراءة المفاتيح
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+GOLDAPI_KEY = os.getenv("GOLDAPI_KEY")
 
-client = OpenAI(api_key=OPENAI_KEY)
+# ✅ تهيئة OpenAI و Telegram
+openai.api_key = OPENAI_API_KEY
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# 🟢 رابط Telegram API
-TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-
+# ✅ تهيئة Flask لاستضافة البوت
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "✅ البوت شغال 100%"
+# ✅ دالة تجيب سعر الذهب من GoldAPI
+def get_gold_price():
+    url = "https://www.goldapi.io/api/XAU/USD"  # ✅ USD ذهب
+    headers = {
+        "x-access-token": GOLDAPI_KEY,
+        "Content-Type": "application/json"
+    }
+    response = requests.get(url, headers=headers)
+    data = response.json()
+    return data.get("price", "❌ ماكو سعر حالياً")
 
-# 🟢 Webhook لمعالجة رسائل Telegram
-@app.route(f"/{TELEGRAM_TOKEN}", methods=['POST'])
-def telegram_webhook():
-    data = request.get_json()
+# ✅ رد على أوامر المستخدم
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "👋 أهلاً بيك! أنا بوت التداول. أكتب /gold حتى أجيبلك سعر الذهب.")
 
-    if "message" in data:
-        chat_id = data["message"]["chat"]["id"]
-        text = data["message"]["text"]
+@bot.message_handler(commands=['gold'])
+def send_gold_price(message):
+    price = get_gold_price()
+    bot.reply_to(message, f"✨ سعر الذهب حالياً: ${price} للأونصة ✨")
 
-        # 🔥 لو المستخدم كتب شي نبعثه إلى GPT ونجيب رد
-        reply = ask_gpt(text)
-
-        send_message(chat_id, reply)
-
-    return {"ok": True}
-
-# 🟢 دالة ترسل رسالة للتيليجرام
-def send_message(chat_id, text):
-    payload = {"chat_id": chat_id, "text": text}
-    requests.post(TELEGRAM_URL, json=payload)
-
-# 🟢 دالة تسأل GPT
-def ask_gpt(user_text):
+@bot.message_handler(func=lambda message: True)
+def chat_with_ai(message):
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "انت مساعد تداول ذكي تعطي صفقات قوية وستوبات صغيرة وتحليل مع الاسباب"},
-                {"role": "user", "content": user_text}
+                {"role": "system", "content": "انت خبير تداول تعطي صفقات قوية مع ستوبات صغيرة."},
+                {"role": "user", "content": message.text}
             ]
         )
-        return response.choices[0].message.content
+        reply = response.choices[0].message["content"]
+        bot.reply_to(message, reply)
     except Exception as e:
-        return f"❌ خطأ في الاتصال بـ GPT: {str(e)}"
+        bot.reply_to(message, f"❌ خطأ: {e}")
+
+# ✅ تشغيل البوت على الويب
+@app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
+def webhook():
+    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
+    return "OK", 200
+
+@app.route('/')
+def index():
+    return "بوت التداول شغال ✅"
 
 if __name__ == "__main__":
+    bot.remove_webhook()
+    bot.set_webhook(url="https://YOUR-APP-NAME.onrender.com/" + TELEGRAM_TOKEN)  # 🔄 غير YOUR-APP-NAME برابط Render
     app.run(host="0.0.0.0", port=10000)
