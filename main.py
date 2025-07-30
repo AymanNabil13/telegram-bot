@@ -1,49 +1,57 @@
 from flask import Flask, request
-from openai import OpenAI
-import os
 import requests
+import os
+from openai import OpenAI
 
-TOKEN = os.getenv("TOKEN")  # توكن بوت تيليجرام
-OPENAI_KEY = os.getenv("OPENAI_KEY")  # مفتاح OpenAI API
+# 🟢 نجيب المفاتيح من Environment Variables
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
 client = OpenAI(api_key=OPENAI_KEY)
-app = Flask(__name__)
 
-URL = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+# 🟢 رابط Telegram API
+TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+
+app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "✅ البوت شغّال!"
+    return "✅ البوت شغال 100%"
 
-@app.route(f'/{TOKEN}', methods=['POST'])
-def webhook():
+# 🟢 Webhook لمعالجة رسائل Telegram
+@app.route(f"/{TELEGRAM_TOKEN}", methods=['POST'])
+def telegram_webhook():
     data = request.get_json()
-    chat_id = data["message"]["chat"]["id"]
-    text = data["message"]["text"]
 
-    # ✅ لو المستخدم طلب تحليل أو صفقه
-    if text.startswith("صفقه") or text.startswith("/signal"):
-        reply = ai_reply(text)
-    else:
-        reply = "🤖 اكتب (صفقه ذهب) أو (تحليل) حتى أساعدك."
+    if "message" in data:
+        chat_id = data["message"]["chat"]["id"]
+        text = data["message"]["text"]
 
-    send_message(chat_id, reply)
+        # 🔥 لو المستخدم كتب شي نبعثه إلى GPT ونجيب رد
+        reply = ask_gpt(text)
+
+        send_message(chat_id, reply)
+
     return {"ok": True}
 
-def ai_reply(user_text):
-    """ يرسل النص إلى GPT ويرجع الرد """
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "انت محلل أسواق تعطي صفقات مؤكدة وستوبات صغيرة."},
-            {"role": "user", "content": user_text}
-        ]
-    )
-    return response.choices[0].message.content
-
+# 🟢 دالة ترسل رسالة للتيليجرام
 def send_message(chat_id, text):
-    """ يرسل الرسالة إلى تليجرام """
-    requests.post(URL, json={"chat_id": chat_id, "text": text})
+    payload = {"chat_id": chat_id, "text": text}
+    requests.post(TELEGRAM_URL, json=payload)
+
+# 🟢 دالة تسأل GPT
+def ask_gpt(user_text):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "انت مساعد تداول ذكي تعطي صفقات قوية وستوبات صغيرة وتحليل مع الاسباب"},
+                {"role": "user", "content": user_text}
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"❌ خطأ في الاتصال بـ GPT: {str(e)}"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
