@@ -6,20 +6,23 @@ import time
 
 app = Flask(__name__)
 
-# ناخذ التوكن من الـ Environment
+# ✅ توكن البوت ناخذه من Render
 TOKEN = os.getenv("TOKEN")
-URL = f"https://api.telegram.org/bot{TOKEN}"
+URL = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
-# معرف التلغرام مالك (حتى يدزلك صفقات مباشرة)
-ADMIN_ID = 386856110   # <-- هذا الـ ID مالك الي دزيته الي
+# ✅ الـ Chat ID مالتك (حتى توصل إشعارات الصفقات)
+ADMIN_ID = 386856110
+
+# ✅ API Key مال GoldAPI (مباشرة من عندك)
+GOLD_API_KEY = "goldapi-1x7h8smdp7fuk1-io"
 
 def send_message(chat_id, text):
-    """إرسال رسالة لتلغرام"""
-    requests.post(f"{URL}/sendMessage", json={"chat_id": chat_id, "text": text})
+    """إرسال رسالة لتليجرام"""
+    requests.post(URL, json={"chat_id": chat_id, "text": text})
 
 @app.route('/')
 def home():
-    return "✅ البوت شغال!"
+    return "✅ البوت شغال عالمي ويراقب الذهب!"
 
 @app.route(f'/{TOKEN}', methods=['POST'])
 def webhook():
@@ -28,24 +31,43 @@ def webhook():
     text = data["message"]["text"]
 
     if text == "/start":
-        reply = "👋 أهلا بك في بوت Ayman Trading 🚀"
+        reply = "👋 أهلاً بك في بوت التداول العالمي 🚀"
     elif text == "/gold":
-        reply = "✨ سعر الذهب حالياً: 3310$ للأونصة ✨"
-    elif text == "/signals":
-        reply = "📊 لا توجد إشارات حالياً، تابع لاحقاً."
+        price = get_gold_price()
+        reply = f"✨ سعر الذهب الآن عالميًا: {price}$"
     else:
-        reply = "🤖 الأمر غير معروف، جرب: /start أو /gold أو /signals"
+        reply = "🤖 استخدم: /start أو /gold"
 
     send_message(chat_id, reply)
     return {"ok": True}
 
-# --- 🔥 ارسال صفقات تلقائية كل 5 دقايق ---
-def auto_signals():
-    while True:
-        send_message(ADMIN_ID, "🚨 صفقة جديدة: شراء الذهب من 3310 بهدف 3330 🎯")
-        time.sleep(300)  # 5 دقايق
+# ✅ دالة تجيب سعر الذهب لايف من GoldAPI
+def get_gold_price():
+    url = "https://www.goldapi.io/api/XAU/USD"
+    headers = {"x-access-token": GOLD_API_KEY, "Content-Type": "application/json"}
+    r = requests.get(url, headers=headers).json()
+    return float(r["price"])
 
-threading.Thread(target=auto_signals, daemon=True).start()
+# ✅ دالة تراقب السوق وترسل صفقات كل 5 دقايق إذا أكو فرصة
+def check_signals():
+    while True:
+        try:
+            price = get_gold_price()
+            print(f"✅ السعر الآن: {price}")
+
+            # 🔥 هنا شروط الصفقات
+            if price < 3310:
+                send_message(ADMIN_ID, f"🚀 صفقة شراء ذهب ✅\nدخول: {price}\n🎯 هدف: {price + 7}\n🛑 ستوب: {price - 5}")
+            elif price > 3335:
+                send_message(ADMIN_ID, f"📉 صفقة بيع ذهب ✅\nدخول: {price}\n🎯 هدف: {price - 7}\n🛑 ستوب: {price + 5}")
+
+        except Exception as e:
+            print("⚠️ Error:", e)
+
+        time.sleep(300)  # ⏳ يفحص كل 5 دقايق
+
+# ✅ نخلي خيط الخلفية يشتغل بدون يوقف البوت
+threading.Thread(target=check_signals, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
