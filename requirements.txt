@@ -1,5 +1,5 @@
 flask
-pyTelegramBotAPI
-openai
 requests
+python-telegram-bot==13.15
+openai>=1.0.0
 python-dotenv
